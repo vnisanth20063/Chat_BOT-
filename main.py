@@ -110,7 +110,7 @@ Question:
 
 Instructions:
 - Answer only from the context.
-- Do make up information from web.
+- Do not make up information from web.
 - If the answer is not available, reply:
 "I'm sorry, I couldn't find that information."
 - Keep the answer professional.
