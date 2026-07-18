@@ -35,7 +35,7 @@ api_key = os.getenv("GROQ_API_KEY")
 # LOAD PDF
 
 
-PDF_PATH = "Digisailor_Company_Profile.pdf"
+PDF_PATH = "Chat bot\Digisailor_Company_Profile.pdf"
 
 loader = PyPDFLoader(PDF_PATH)
 pages = loader.load()
