@@ -35,7 +35,7 @@ api_key = os.getenv("GROQ_API_KEY")
 # LOAD PDF
 
 
-PDF_PATH = "Chat bot\Digisailor_Company_Profile.pdf"
+PDF_PATH = "Digisailor_Company_Profile.pdf"
 
 loader = PyPDFLoader(PDF_PATH)
 pages = loader.load()
@@ -100,21 +100,31 @@ llm = ChatGroq(
 prompt = ChatPromptTemplate.from_template("""
 You are DigiSailor AI Assistant.
 
-Answer the user's question ONLY using the provided context.
+Use the following context from the DigiSailor PDF to answer the user's question.
 
-Context:
+If the context contains the answer:
+- Answer using only the provided context.
+- Be clear, concise, and accurate.
+- Mention that the source is the DigiSailor PDF.
+
+If the context is empty, insufficient, or does not answer the question:
+- Use your available web search results or general knowledge.
+- Prefer official and trustworthy sources.
+- Mention that the source is the Web.
+
+If both the PDF context and web results are useful:
+- Combine them into one complete answer.
+- Clearly distinguish which information comes from the PDF and which comes from the Web.
+
+If you cannot find the answer anywhere:
+- Say that you don't have enough information.
+- Do not make up facts.
+
+PDF Context:
 {context}
 
-Question:
-{question}
-
-Instructions:
-- Answer only from the context.
-- Do not make up information from web.
-- If the answer is not available, reply:
-"I'm sorry, I couldn't find that information."
-- Keep the answer professional.
-- Use bullet points whenever appropriate.
+User Question:
+{input}
 
 Answer:
 """)

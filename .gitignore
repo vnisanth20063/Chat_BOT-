@@ -15,8 +15,7 @@ dist/
 chroma_db/
 .chroma/
 
-# PDF documents
-*.pdf
+
 
 
 # OS files
