@@ -14,7 +14,6 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 
-
 # PAGE CONFIG
 
 
@@ -27,75 +26,88 @@ st.set_page_config(
 st.title("🤖 DigiSailor AI Assistant")
 st.write("Ask anything about DigiSailor.")
 
-
 load_dotenv()
-
 api_key = os.getenv("GROQ_API_KEY")
-
-# LOAD PDF
-
 
 PDF_PATH = "Digisailor_Company_Profile.pdf"
 
-loader = PyPDFLoader(PDF_PATH)
-pages = loader.load()
+# CACHE PDF
 
 
-# SPLIT DOCUMENTS
+@st.cache_data
+def load_pdf():
+    loader = PyPDFLoader(PDF_PATH)
+    return loader.load()
+
+# CACHE CHUNKS
 
 
-splitter = RecursiveCharacterTextSplitter(
-    chunk_size=600,
-    chunk_overlap=150
-)
+@st.cache_data
+def split_documents():
+    pages = load_pdf()
 
-chunks = splitter.split_documents(pages)
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=600,
+        chunk_overlap=150
+    )
 
-# =====================================================
-# EMBEDDINGS
-# =====================================================
+    return splitter.split_documents(pages)
 
-embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
 
-# =====================================================
-# VECTOR DATABASE
-# =====================================================
+# CACHE EMBEDDINGS
 
-vector_store = Chroma.from_documents(
-    documents=chunks,
-    embedding=embeddings
-)
 
-# =====================================================
-# RETRIEVER
-# =====================================================
+@st.cache_resource
+def load_embeddings():
+    return HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
+    )
 
-retriever = vector_store.as_retriever(
-    search_kwargs={"k":3}
-)
 
-# =====================================================
-# FORMAT DOCUMENTS
-# =====================================================
+# CACHE VECTOR STORE
+
+
+@st.cache_resource
+def load_vector_store():
+    chunks = split_documents()
+    embeddings = load_embeddings()
+
+    return Chroma.from_documents(
+        documents=chunks,
+        embedding=embeddings
+    )
+
+
+# CACHE RETRIEVER
+
+
+@st.cache_resource
+def load_retriever():
+    return load_vector_store().as_retriever(
+        search_kwargs={"k": 3}
+    )
+
+
+# CACHE LLM
+
+
+@st.cache_resource
+def load_llm():
+    return ChatGroq(
+        model="llama-3.3-70b-versatile",
+        api_key=api_key,
+        temperature=0.5
+    )
+
+
+# FORMAT DOCS
+
 
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
-# =====================================================
-# LLM
-# =====================================================
-
-llm = ChatGroq(
-    model="llama-3.3-70b-versatile",
-    api_key=api_key,
-    temperature=0.5
-)
-
-# =====================================================
 # PROMPT
-# =====================================================
+
 
 prompt = ChatPromptTemplate.from_template("""
 You are DigiSailor AI Assistant.
@@ -104,80 +116,75 @@ Use the following context from the DigiSailor PDF to answer the user's question.
 
 If the context contains the answer:
 - Answer using only the provided context.
-- Be clear, concise, and accurate.
 - Mention that the source is the DigiSailor PDF.
 
-If the context is empty, insufficient, or does not answer the question:
-- Use your available web search results or general knowledge.
-- Prefer official and trustworthy sources.
-- Mention that the source is the Web.
+If the context is insufficient:
+- Use your general knowledge.
+- Mention that the source is general knowledge.
 
-If both the PDF context and web results are useful:
-- Combine them into one complete answer.
-- Clearly distinguish which information comes from the PDF and which comes from the Web.
-
-If you cannot find the answer anywhere:
-- Say that you don't have enough information.
-- Do not make up facts.
-
-PDF Context:
+Context:
 {context}
 
-User Question:
-{input}
+Question:
+{question}
 
 Answer:
 """)
 
-# =====================================================
-# RAG CHAIN
-# =====================================================
+# CACHE CHAIN
 
-chain = (
-    {
-        "context": retriever | format_docs,
-        "question": RunnablePassthrough()
-    }
-    | prompt
-    | llm
-    | StrOutputParser()
-)
 
-# =====================================================
+@st.cache_resource
+def load_chain():
+
+    retriever = load_retriever()
+    llm = load_llm()
+
+    chain = (
+        {
+            "context": retriever | format_docs,
+            "question": RunnablePassthrough()
+        }
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    return chain
+
+chain = load_chain()
+
+
 # CHAT HISTORY
-# =====================================================
+
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display previous messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# =====================================================
 # USER INPUT
-# =====================================================
+
 
 question = st.chat_input("Ask a question about DigiSailor...")
 
 if question:
 
-    # Display user message
     with st.chat_message("user"):
         st.markdown(question)
 
     st.session_state.messages.append(
         {
-            "role":"user",
-            "content":question
+            "role": "user",
+            "content": question
         }
     )
 
-    # Generate answer
     with st.chat_message("assistant"):
 
-        with st.spinner("Searching documents..."):
+        with st.spinner("Searching..."):
 
             response = chain.invoke(question)
 
@@ -185,7 +192,7 @@ if question:
 
     st.session_state.messages.append(
         {
-            "role":"assistant",
-            "content":response
+            "role": "assistant",
+            "content": response
         }
     )
